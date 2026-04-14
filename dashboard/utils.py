@@ -2,8 +2,34 @@
 from __future__ import annotations
 
 import re
+import socket
 import subprocess
 from pathlib import Path
+
+
+def get_server_hostname() -> str:
+    """Return the mDNS hostname (e.g. mumus-pc-ub.local) if avahi is running,
+    otherwise fall back to the machine's LAN IP address."""
+    # Try mDNS hostname first
+    try:
+        hostname = socket.gethostname()
+        if hostname and not hostname.startswith("localhost"):
+            return f"{hostname}.local"
+    except Exception:
+        pass
+    # Fall back to LAN IP
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "localhost"
+
+
+def project_url(hostname: str, port: int) -> str:
+    return f"http://{hostname}:{port}"
 
 
 def strip_ansi(text: str) -> str:

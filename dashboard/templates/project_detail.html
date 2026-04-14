@@ -62,11 +62,11 @@
         </div>
         {% if project.port %}
         <div class="flex justify-between">
-          <dt class="text-gray-400">Port</dt>
+          <dt class="text-gray-400">URL</dt>
           <dd>
-            <a href="http://localhost:{{ project.port }}" target="_blank"
-               class="text-indigo-400 hover:text-indigo-300 font-mono text-xs">
-              :{{ project.port }} ↗
+            <a href="{{ project_url(server_hostname, project.port) }}" target="_blank"
+               class="text-indigo-400 hover:text-indigo-300 font-mono text-xs break-all">
+              {{ project_url(server_hostname, project.port) }} ↗
             </a>
           </dd>
         </div>

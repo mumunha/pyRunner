@@ -15,7 +15,7 @@ from dashboard.config import PYRUNNER_ROOT, get_logs_dir, get_projects_dir, get_
 from dashboard.database import init_db
 from dashboard.git_poller import GitPoller
 from dashboard.scheduler_service import SchedulerService
-from dashboard.utils import format_duration, short_commit, status_bg, status_color
+from dashboard.utils import format_duration, get_server_hostname, project_url, short_commit, status_bg, status_color
 from dashboard.routers import deploys, projects, schedules, settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -77,6 +77,11 @@ templates.env.filters["short_commit"] = short_commit
 templates.env.filters["format_duration"] = format_duration
 templates.env.filters["status_color"] = status_color
 templates.env.filters["status_bg"] = status_bg
+
+# Make server hostname available in every template automatically
+_server_hostname = get_server_hostname()
+templates.env.globals["server_hostname"] = _server_hostname
+templates.env.globals["project_url"] = project_url
 
 # Static files (create dir if needed)
 STATIC_DIR.mkdir(exist_ok=True)

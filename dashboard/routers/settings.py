@@ -13,7 +13,7 @@ router = APIRouter()
 def settings_page(request: Request):
     templates = request.app.state.templates
     cfg = load_config()
-    return templates.TemplateResponse("settings.html", {"request": request, "cfg": cfg})
+    return templates.TemplateResponse(request, "settings.html", {"cfg": cfg})
 
 
 @router.post("/save")

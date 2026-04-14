@@ -118,9 +118,9 @@ def home(request: Request):
         poller_ok = git_poller is not None and git_poller.running
 
         return templates.TemplateResponse(
+            request,
             "index.html",
             {
-                "request": request,
                 "stats": {
                     "total": total,
                     "running": running,

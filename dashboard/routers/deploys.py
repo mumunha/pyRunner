@@ -30,9 +30,9 @@ def deploy_log(
     projects = db.query(Project).order_by(Project.name).all()
 
     return templates.TemplateResponse(
+        request,
         "deploy_log.html",
         {
-            "request": request,
             "deploys": deploys,
             "projects": projects,
             "filter_project": project,

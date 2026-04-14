@@ -41,9 +41,9 @@ def list_schedules(request: Request, db: Session = Depends(get_db)):
         .all()
     )
     return templates.TemplateResponse(
+        request,
         "schedules.html",
         {
-            "request": request,
             "schedules": schedules,
             "next_runs": next_runs,
             "recent_executions": recent_executions,

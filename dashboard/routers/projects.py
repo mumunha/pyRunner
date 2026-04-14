@@ -49,8 +49,9 @@ def list_projects(request: Request, status: str = "", type: str = "", db: Sessio
         query = query.filter(Project.type == type)
     projects = query.order_by(Project.name).all()
     return templates.TemplateResponse(
+        request,
         "projects.html",
-        {"request": request, "projects": projects, "filter_status": status, "filter_type": type},
+        {"projects": projects, "filter_status": status, "filter_type": type},
     )
 
 
@@ -135,9 +136,9 @@ def project_detail(request: Request, name: str, db: Session = Depends(get_db)):
         next_runs[s.id] = nr
 
     return templates.TemplateResponse(
+        request,
         "project_detail.html",
         {
-            "request": request,
             "project": project,
             "sup_info": sup_info,
             "deploys": deploys,
@@ -243,9 +244,9 @@ def view_logs(request: Request, name: str, lines: int = 200, db: Session = Depen
     stderr_lines = tail_file(log_dir / f"{name}.stderr.log", lines)
 
     return templates.TemplateResponse(
+        request,
         "logs.html",
         {
-            "request": request,
             "project": project,
             "stdout_lines": stdout_lines,
             "stderr_lines": stderr_lines,

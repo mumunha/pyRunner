@@ -116,14 +116,6 @@ class DeployPipeline:
             new_commit = self._get_local_head()
 
             # Step 2: uv sync
-            rc, stdout, stderr = subprocess.run(
-                ["uv", "sync"],
-                cwd=self.project_dir,
-                capture_output=True,
-                text=True,
-                timeout=300,
-            ).returncode, "", ""
-            # Re-run properly
             result = subprocess.run(
                 ["uv", "sync"],
                 cwd=self.project_dir,
@@ -136,14 +128,28 @@ class DeployPipeline:
 
             # Step 3: Regenerate supervisor conf
             write_supervisor_conf(self.project, self.cfg)
-            _supervisorctl("reread")
-            _supervisorctl("update")
+            rc_reread, out_reread = _supervisorctl("reread")
+            rc_update, out_update = _supervisorctl("update")
+            logger.info("supervisorctl reread: rc=%s %s", rc_reread, out_reread)
+            logger.info("supervisorctl update: rc=%s %s", rc_update, out_update)
 
             # Step 4: Restart if was running or auto_start
             if self.project.status in ("running", "updating") or self.project.auto_start:
-                _supervisorctl("restart", self.project.name)
+                rc_restart, out_restart = _supervisorctl("restart", self.project.name)
+                logger.info("supervisorctl restart %s: rc=%s %s", self.project.name, rc_restart, out_restart)
+                if rc_restart != 0:
+                    # start may work even if restart fails (program not yet known)
+                    rc_start, out_start = _supervisorctl("start", self.project.name)
+                    logger.info("supervisorctl start %s: rc=%s %s", self.project.name, rc_start, out_start)
 
             duration = time.time() - start_time
+
+            # Verify the process is actually running via Supervisord XML-RPC
+            actual_running = _verify_process_running(self.project.name, self.cfg)
+            logger.info(
+                "Process verification for %s: running=%s", self.project.name, actual_running
+            )
+
             db = SessionLocal()
             deploy = db.query(Deploy).filter(Deploy.id == deploy_id).first()
             if deploy:
@@ -153,7 +159,7 @@ class DeployPipeline:
                 db.commit()
             db.close()
 
-            return True, new_commit, None
+            return True, new_commit, None if actual_running else "Deploy succeeded but process did not start. Check supervisor logs."
 
         except Exception as e:
             duration = time.time() - start_time
@@ -330,10 +336,18 @@ class GitPoller:
             p = db2.query(Project).filter(Project.id == project_id).first()
             if p:
                 p.last_commit = new_commit
-                p.status = "running" if prev_status == "running" or p.auto_start else "ready"
-                p.error_message = error if not success else None
                 if not success:
                     p.status = "error"
+                    p.error_message = error
+                elif prev_status == "running" or p.auto_start:
+                    # Verify the process actually started
+                    time.sleep(2)
+                    p.status = "running" if _verify_process_running(p.name, self.cfg) else "error"
+                    if p.status == "error":
+                        p.error_message = "Deploy succeeded but process did not start. Check supervisor logs."
+                else:
+                    p.status = "ready"
+                    p.error_message = None
                 p.updated_at = datetime.utcnow()
                 db2.commit()
                 _log_activity(
@@ -417,12 +431,26 @@ class GitPoller:
 
                 # Write supervisor conf
                 write_supervisor_conf(project, self.cfg)
-                _supervisorctl("reread")
-                _supervisorctl("update")
+                rc_rr, out_rr = _supervisorctl("reread")
+                rc_up, out_up = _supervisorctl("update")
+                logger.info("supervisorctl reread: rc=%s %s", rc_rr, out_rr)
+                logger.info("supervisorctl update: rc=%s %s", rc_up, out_up)
 
                 if project.auto_start:
-                    _supervisorctl("start", name)
-                    project.status = "running"
+                    rc_st, out_st = _supervisorctl("start", name)
+                    logger.info("supervisorctl start %s: rc=%s %s", name, rc_st, out_st)
+                    # Small delay to let supervisord spin up the process
+                    time.sleep(2)
+                    if _verify_process_running(name, self.cfg):
+                        project.status = "running"
+                    else:
+                        project.status = "error"
+                        project.error_message = (
+                            f"supervisorctl start returned rc={rc_st}: {out_st}. "
+                            "Check that supervisord is running and its include path covers "
+                            "~/pyrunner/supervisor/conf.d/"
+                        )
+                        logger.error("Process did not start for %s: %s", name, project.error_message)
                 else:
                     project.status = "ready"
 
@@ -445,6 +473,19 @@ class GitPoller:
 
         t = threading.Thread(target=_run, daemon=True)
         t.start()
+
+
+def _verify_process_running(name: str, cfg: dict) -> bool:
+    """Ask Supervisord via XML-RPC whether the process is actually running."""
+    try:
+        from dashboard.supervisor_client import SupervisorClient
+        client = SupervisorClient(cfg)
+        info = client.get_process_info(name)
+        if info:
+            return str(info.get("statename", "")).upper() == "RUNNING"
+    except Exception as e:
+        logger.warning("Could not verify process state for %s: %s", name, e)
+    return False
 
 
 def _update_from_pyproject(project_id: int):

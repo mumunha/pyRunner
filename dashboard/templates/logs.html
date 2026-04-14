@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Logs: {{ project.name }} — PyRunner{% endblock %}
+{% block page_title %}Logs: {{ project.name }}{% endblock %}
+
+{% block header_actions %}
+<a href="/projects/{{ project.name }}" class="btn btn-ghost text-xs">← Project</a>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-5">
+
+  <div class="card">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-gray-200">stdout</h2>
+      <span class="text-xs text-gray-500">{{ stdout_lines | length }} lines</span>
+    </div>
+    <div id="stdout-log"
+         class="bg-gray-900 rounded-lg p-3 font-mono text-xs text-gray-300 h-80 overflow-y-auto"
+         hx-get="/projects/api/{{ project.name }}/logs/tail"
+         hx-trigger="load, every 3s"
+         hx-swap="innerHTML">
+      {% for line in stdout_lines %}
+      <div class="hover:bg-gray-800/50">{{ line }}</div>
+      {% else %}
+      <span class="text-gray-600">No output yet.</span>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if stderr_lines %}
+  <div class="card border-red-900/50">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-red-400">stderr</h2>
+      <span class="text-xs text-gray-500">{{ stderr_lines | length }} lines</span>
+    </div>
+    <div class="bg-gray-900 rounded-lg p-3 font-mono text-xs text-red-300 h-60 overflow-y-auto">
+      {% for line in stderr_lines %}
+      <div class="hover:bg-gray-800/50">{{ line }}</div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('htmx:afterSwap', function(e) {
+  if (e.detail.target.id === 'stdout-log') {
+    e.detail.target.scrollTop = e.detail.target.scrollHeight;
+  }
+});
+</script>
+{% endblock %}

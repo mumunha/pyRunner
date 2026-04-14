@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}PyRunner{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' };
+  </script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <style>
+    .sidebar-link { @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition-colors text-sm font-medium; }
+    .sidebar-link.active { @apply bg-indigo-600 text-white; }
+    .badge { @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold; }
+    .btn { @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer; }
+    .btn-primary { @apply bg-indigo-600 hover:bg-indigo-500 text-white; }
+    .btn-danger { @apply bg-red-700 hover:bg-red-600 text-white; }
+    .btn-ghost { @apply bg-gray-700 hover:bg-gray-600 text-gray-200; }
+    .btn-success { @apply bg-green-700 hover:bg-green-600 text-white; }
+    .card { @apply bg-gray-800 rounded-xl border border-gray-700 p-5; }
+    .table-row { @apply border-b border-gray-700 hover:bg-gray-750 transition-colors; }
+  </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex">
+
+  <!-- Sidebar -->
+  <aside class="w-56 min-h-screen bg-gray-900 border-r border-gray-800 flex flex-col fixed left-0 top-0 bottom-0 z-20">
+    <div class="px-5 py-4 border-b border-gray-800">
+      <div class="flex items-center gap-2">
+        <svg class="w-7 h-7 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        <span class="text-lg font-bold text-white">PyRunner</span>
+      </div>
+      <span class="text-xs text-gray-500 mt-0.5 block">v1.0</span>
+    </div>
+
+    <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <a href="/" class="sidebar-link {% if request.url.path == '/' %}active{% endif %}">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+        </svg>
+        Dashboard
+      </a>
+      <a href="/projects" class="sidebar-link {% if '/projects' in request.url.path %}active{% endif %}">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+        </svg>
+        Projects
+      </a>
+      <a href="/schedules" class="sidebar-link {% if '/schedules' in request.url.path %}active{% endif %}">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        Schedules
+      </a>
+      <a href="/deploys" class="sidebar-link {% if '/deploys' in request.url.path %}active{% endif %}">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        Deploy Log
+      </a>
+      <a href="/settings" class="sidebar-link {% if '/settings' in request.url.path %}active{% endif %}">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        Settings
+      </a>
+    </nav>
+
+    <div class="px-3 py-4 border-t border-gray-800">
+      <div class="flex items-center gap-2 px-2">
+        <div class="w-2 h-2 rounded-full bg-green-400"></div>
+        <span class="text-xs text-gray-400">System OK</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="ml-56 flex-1 flex flex-col min-h-screen">
+    <!-- Top bar -->
+    <header class="border-b border-gray-800 bg-gray-900 px-6 py-3 flex items-center justify-between sticky top-0 z-10">
+      <h1 class="text-sm font-semibold text-gray-300">{% block page_title %}PyRunner{% endblock %}</h1>
+      <div class="flex items-center gap-3">
+        {% block header_actions %}{% endblock %}
+      </div>
+    </header>
+
+    <!-- Content -->
+    <div class="flex-1 p-6">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <!-- Modal overlay (for add project etc.) -->
+  <div id="modal-overlay" class="hidden fixed inset-0 bg-black/60 z-30 flex items-center justify-center p-4"
+       onclick="if(event.target===this){closeModal()}">
+    <div id="modal-box" class="bg-gray-800 rounded-xl border border-gray-700 shadow-2xl w-full max-w-lg p-6">
+      {% block modal %}{% endblock %}
+    </div>
+  </div>
+
+  <script>
+    function openModal(id) {
+      document.getElementById('modal-overlay').classList.remove('hidden');
+      document.querySelectorAll('.modal-content').forEach(e => e.classList.add('hidden'));
+      if (id) document.getElementById(id).classList.remove('hidden');
+    }
+    function closeModal() {
+      document.getElementById('modal-overlay').classList.add('hidden');
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+  </script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

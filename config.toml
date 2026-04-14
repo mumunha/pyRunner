@@ -1,0 +1,27 @@
+[server]
+host = "0.0.0.0"
+port = 8420
+
+[git]
+poll_interval_minutes = 5
+ssh_key_path = "~/.ssh/id_ed25519"
+parallel_checks = 4
+max_retries = 3
+
+[supervisor]
+config_dir = "~/pyrunner/supervisor/conf.d"
+socket = "unix:///tmp/supervisor.sock"
+xmlrpc_url = "http://localhost:9001/RPC2"
+username = ""
+password = ""
+
+[scheduler]
+timezone = "America/Sao_Paulo"
+
+[logs]
+retention_days = 30
+max_size_mb = 50
+
+[notifications]
+deploy_webhook = ""
+schedule_webhook = ""

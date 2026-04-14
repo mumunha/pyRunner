@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Schedules — PyRunner{% endblock %}
+{% block page_title %}Schedules{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  <!-- Schedules list -->
+  <div class="lg:col-span-2 space-y-4">
+    <div class="card p-0 overflow-hidden">
+      <div class="px-5 py-4 border-b border-gray-700 flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-gray-200">All Schedules</h2>
+        <span class="text-xs text-gray-500">{{ schedules | length }} total</span>
+      </div>
+      {% if schedules %}
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-700 text-left bg-gray-800/50">
+            <th class="px-5 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wide">Project</th>
+            <th class="px-5 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wide">Cron</th>
+            <th class="px-5 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wide">Status</th>
+            <th class="px-5 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wide">Next Run</th>
+            <th class="px-5 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wide">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in schedules %}
+          <tr class="table-row">
+            <td class="px-5 py-3">
+              <a href="/projects/{{ s.project.name }}" class="text-indigo-400 hover:text-indigo-300 font-medium">
+                {{ s.project.name }}
+              </a>
+            </td>
+            <td class="px-5 py-3 font-mono text-xs text-gray-300">{{ s.cron_expression }}</td>
+            <td class="px-5 py-3">
+              {% if s.enabled %}
+                <span class="badge bg-green-900 text-green-300">active</span>
+              {% else %}
+                <span class="badge bg-gray-700 text-gray-400">paused</span>
+              {% endif %}
+            </td>
+            <td class="px-5 py-3 text-xs text-gray-400">
+              {% if next_runs.get(s.id) %}
+                {{ next_runs[s.id].strftime('%Y-%m-%d %H:%M') }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td class="px-5 py-3">
+              <div class="flex gap-1.5">
+                <form method="post" action="/schedules/{{ s.id }}/run-now">
+                  <button class="btn btn-ghost text-xs" title="Run now">Run Now</button>
+                </form>
+                {% if s.enabled %}
+                  <form method="post" action="/schedules/{{ s.id }}/pause">
+                    <button class="btn btn-ghost text-xs">Pause</button>
+                  </form>
+                {% else %}
+                  <form method="post" action="/schedules/{{ s.id }}/resume">
+                    <button class="btn btn-success text-xs">Resume</button>
+                  </form>
+                {% endif %}
+                <form method="post" action="/schedules/{{ s.id }}/delete"
+                      onsubmit="return confirm('Delete this schedule?')">
+                  <button class="btn btn-danger text-xs">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="px-5 py-12 text-center">
+        <p class="text-gray-500 text-sm">No schedules configured yet.</p>
+        <p class="text-gray-600 text-xs mt-1">Go to a project's detail page to add a schedule.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Recent executions -->
+  <div class="card">
+    <h2 class="text-sm font-semibold text-gray-200 mb-4">Recent Executions</h2>
+    {% if recent_executions %}
+    <div class="space-y-2">
+      {% for e in recent_executions %}
+      <div class="flex items-center gap-3 py-2 border-b border-gray-700/50 text-sm">
+        <span class="badge {{ e.status | status_bg }} shrink-0">{{ e.status }}</span>
+        <div class="min-w-0 flex-1">
+          <a href="/projects/{{ e.project.name }}" class="text-indigo-400 hover:text-indigo-300 text-xs truncate block">
+            {{ e.project.name }}
+          </a>
+          <span class="text-xs text-gray-500">{{ e.duration_seconds | format_duration }}</span>
+        </div>
+        <span class="text-xs text-gray-500 shrink-0">
+          {{ e.created_at.strftime('%H:%M') if e.created_at else '' }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-500">No executions yet.</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

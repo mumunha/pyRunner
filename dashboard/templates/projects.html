@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Projects — PyRunner{% endblock %}
+{% block page_title %}Projects{% endblock %}
+
+{% block header_actions %}
+<button onclick="openModal('add-project-modal')" class="btn btn-primary">
+  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+  </svg>
+  Add Project
+</button>
+{% endblock %}
+
+{% block content %}
+
+<!-- Filters -->
+<div class="flex items-center gap-3 mb-5">
+  <span class="text-sm text-gray-400">Filter:</span>
+  <a href="/projects" class="btn {% if not filter_status and not filter_type %}btn-primary{% else %}btn-ghost{% endif %}">All</a>
+  <a href="/projects?status=running" class="btn {% if filter_status == 'running' %}btn-primary{% else %}btn-ghost{% endif %}">Running</a>
+  <a href="/projects?status=stopped" class="btn {% if filter_status == 'stopped' %}btn-primary{% else %}btn-ghost{% endif %}">Stopped</a>
+  <a href="/projects?status=error" class="btn {% if filter_status == 'error' %}btn-primary{% else %}btn-ghost{% endif %}">Error</a>
+  <div class="w-px h-5 bg-gray-700"></div>
+  <a href="/projects?type=worker" class="btn {% if filter_type == 'worker' %}btn-primary{% else %}btn-ghost{% endif %}">Worker</a>
+  <a href="/projects?type=web" class="btn {% if filter_type == 'web' %}btn-primary{% else %}btn-ghost{% endif %}">Web</a>
+  <a href="/projects?type=scheduled" class="btn {% if filter_type == 'scheduled' %}btn-primary{% else %}btn-ghost{% endif %}">Scheduled</a>
+</div>
+
+{% if projects %}
+<div class="card p-0 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="border-b border-gray-700 text-left">
+        <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Name</th>
+        <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Type</th>
+        <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</th>
+        <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Branch</th>
+        <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Last Commit</th>
+        <th class="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in projects %}
+      <tr class="table-row">
+        <td class="px-4 py-3">
+          <a href="/projects/{{ p.name }}" class="font-semibold text-indigo-400 hover:text-indigo-300">{{ p.name }}</a>
+          <div class="text-xs text-gray-500 truncate max-w-xs">{{ p.repo_url }}</div>
+        </td>
+        <td class="px-4 py-3">
+          <span class="badge
+            {% if p.type == 'web' %}bg-blue-900 text-blue-300
+            {% elif p.type == 'scheduled' %}bg-purple-900 text-purple-300
+            {% else %}bg-gray-700 text-gray-300{% endif %}">
+            {{ p.type }}
+          </span>
+        </td>
+        <td class="px-4 py-3">
+          <span class="badge {{ p.status | status_bg }}">{{ p.status }}</span>
+        </td>
+        <td class="px-4 py-3 text-gray-400 font-mono text-xs">{{ p.branch }}</td>
+        <td class="px-4 py-3 text-gray-400 font-mono text-xs">{{ p.last_commit | short_commit }}</td>
+        <td class="px-4 py-3">
+          <div class="flex items-center gap-1.5">
+            {% if p.status == 'running' %}
+              <form method="post" action="/projects/{{ p.name }}/stop" class="inline">
+                <button class="btn btn-danger" title="Stop">
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                    <rect x="6" y="6" width="12" height="12" rx="1"/>
+                  </svg>
+                </button>
+              </form>
+              <form method="post" action="/projects/{{ p.name }}/restart" class="inline">
+                <button class="btn btn-ghost" title="Restart">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                  </svg>
+                </button>
+              </form>
+            {% elif p.status in ['ready', 'stopped'] %}
+              <form method="post" action="/projects/{{ p.name }}/start" class="inline">
+                <button class="btn btn-success" title="Start">
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                </button>
+              </form>
+            {% endif %}
+            <a href="/projects/{{ p.name }}" class="btn btn-ghost" title="Details">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              </svg>
+            </a>
+            {% if p.type == 'web' and p.port %}
+              <a href="http://localhost:{{ p.port }}" target="_blank" class="btn btn-ghost" title="Open UI">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                </svg>
+              </a>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card text-center py-16">
+  <svg class="w-12 h-12 text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+  </svg>
+  <p class="text-gray-400 text-sm mb-4">No projects yet.</p>
+  <button onclick="openModal('add-project-modal')" class="btn btn-primary mx-auto">
+    Add your first project
+  </button>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block modal %}
+<!-- Add Project Modal -->
+<div id="add-project-modal" class="modal-content">
+  <div class="flex items-center justify-between mb-5">
+    <h2 class="text-lg font-semibold text-white">Add Project</h2>
+    <button onclick="closeModal()" class="text-gray-400 hover:text-white">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+  <form method="post" action="/projects/add" class="space-y-4">
+    <div>
+      <label class="block text-sm font-medium text-gray-300 mb-1.5">GitHub Repository URL</label>
+      <input type="url" name="repo_url" required placeholder="https://github.com/user/repo.git"
+             class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"/>
+      <p class="text-xs text-gray-500 mt-1">HTTPS or SSH URL</p>
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-gray-300 mb-1.5">Branch</label>
+      <input type="text" name="branch" value="main"
+             class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"/>
+    </div>
+    <div class="flex gap-3 pt-2">
+      <button type="submit" class="btn btn-primary flex-1 justify-center">
+        Clone & Register
+      </button>
+      <button type="button" onclick="closeModal()" class="btn btn-ghost flex-1 justify-center">
+        Cancel
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Auto-open modal if URL has #add
+  if (window.location.hash === '#add') openModal('add-project-modal');
+</script>
+{% endblock %}

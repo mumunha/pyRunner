@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} — PyRunner{% endblock %}
+{% block page_title %}{{ project.name }}{% endblock %}
+
+{% block header_actions %}
+<a href="/projects" class="btn btn-ghost text-xs">← Projects</a>
+<form method="post" action="/projects/{{ project.name }}/deploy" class="inline">
+  <button class="btn btn-ghost text-xs" title="Force deploy">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+    </svg>
+    Force Deploy
+  </button>
+</form>
+{% if project.status == 'running' %}
+  <form method="post" action="/projects/{{ project.name }}/stop" class="inline">
+    <button class="btn btn-danger text-xs">Stop</button>
+  </form>
+  <form method="post" action="/projects/{{ project.name }}/restart" class="inline">
+    <button class="btn btn-ghost text-xs">Restart</button>
+  </form>
+{% elif project.status in ['ready', 'stopped', 'error'] %}
+  <form method="post" action="/projects/{{ project.name }}/start" class="inline">
+    <button class="btn btn-success text-xs">Start</button>
+  </form>
+{% endif %}
+<form method="post" action="/projects/{{ project.name }}/delete" class="inline"
+      onsubmit="return confirm('Delete project {{ project.name }}? This removes all data but not the local files.')">
+  <button class="btn btn-danger text-xs">Delete</button>
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  <!-- Left column -->
+  <div class="space-y-5">
+
+    <!-- Project info -->
+    <div class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-gray-200">Project Info</h2>
+        <span class="badge {{ project.status | status_bg }}">{{ project.status }}</span>
+      </div>
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between">
+          <dt class="text-gray-400">Type</dt>
+          <dd class="text-gray-200">{{ project.type }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-gray-400">Entrypoint</dt>
+          <dd class="text-gray-200 font-mono text-xs">{{ project.entrypoint }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-gray-400">Branch</dt>
+          <dd class="text-gray-200 font-mono text-xs">{{ project.branch }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-gray-400">Last Commit</dt>
+          <dd class="text-gray-200 font-mono text-xs">{{ project.last_commit | short_commit }}</dd>
+        </div>
+        {% if project.port %}
+        <div class="flex justify-between">
+          <dt class="text-gray-400">Port</dt>
+          <dd>
+            <a href="http://localhost:{{ project.port }}" target="_blank"
+               class="text-indigo-400 hover:text-indigo-300 font-mono text-xs">
+              :{{ project.port }} ↗
+            </a>
+          </dd>
+        </div>
+        {% endif %}
+        <div class="flex justify-between">
+          <dt class="text-gray-400">Display</dt>
+          <dd class="text-gray-200">{{ 'Yes' if project.requires_display else 'No' }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-gray-400">Auto-start</dt>
+          <dd class="text-gray-200">{{ 'Yes' if project.auto_start else 'No' }}</dd>
+        </div>
+      </dl>
+      {% if project.repo_url %}
+      <div class="mt-3 pt-3 border-t border-gray-700">
+        <p class="text-xs text-gray-500 break-all">{{ project.repo_url }}</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Supervisor info -->
+    {% if sup_info %}
+    <div class="card">
+      <h2 class="text-sm font-semibold text-gray-200 mb-3">Process Info</h2>
+      <dl class="space-y-2 text-sm">
+        {% if sup_info.pid %}
+        <div class="flex justify-between">
+          <dt class="text-gray-400">PID</dt>
+          <dd class="text-gray-200 font-mono">{{ sup_info.pid }}</dd>
+        </div>
+        {% endif %}
+        <div class="flex justify-between">
+          <dt class="text-gray-400">State</dt>
+          <dd class="text-gray-200">{{ sup_info.get('statename', '—') }}</dd>
+        </div>
+        {% if sup_info.get('now') and sup_info.get('start') %}
+        <div class="flex justify-between">
+          <dt class="text-gray-400">Uptime</dt>
+          <dd class="text-gray-200">{{ ((sup_info.now - sup_info.start)) | format_duration }}</dd>
+        </div>
+        {% endif %}
+      </dl>
+    </div>
+    {% endif %}
+
+    <!-- Error box -->
+    {% if project.error_message %}
+    <div class="card border-red-800 bg-red-900/20">
+      <h2 class="text-sm font-semibold text-red-400 mb-2">Last Error</h2>
+      <pre class="text-xs text-red-300 whitespace-pre-wrap break-all">{{ project.error_message }}</pre>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- Right column: tabs -->
+  <div class="lg:col-span-2 space-y-5">
+
+    <!-- Live Logs -->
+    <div class="card">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-gray-200">Live Logs</h2>
+        <a href="/projects/{{ project.name }}/logs" class="text-xs text-indigo-400 hover:text-indigo-300">Full logs ↗</a>
+      </div>
+      <div id="log-container"
+           class="bg-gray-900 rounded-lg p-3 font-mono text-xs text-gray-300 h-48 overflow-y-auto"
+           hx-get="/projects/api/{{ project.name }}/logs/tail?limit=30"
+           hx-trigger="load, every 5s"
+           hx-swap="innerHTML">
+        <span class="text-gray-500">Loading logs...</span>
+      </div>
+    </div>
+
+    <!-- Schedules -->
+    <div class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-gray-200">Schedules</h2>
+        <button onclick="openModal('add-schedule-modal')" class="btn btn-ghost text-xs">
+          + Add Schedule
+        </button>
+      </div>
+      {% if schedules %}
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-700 text-left">
+            <th class="py-2 text-xs text-gray-400">Cron</th>
+            <th class="py-2 text-xs text-gray-400">Timeout</th>
+            <th class="py-2 text-xs text-gray-400">Status</th>
+            <th class="py-2 text-xs text-gray-400">Next Run</th>
+            <th class="py-2 text-xs text-gray-400">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in schedules %}
+          <tr class="border-b border-gray-700/50">
+            <td class="py-2 font-mono text-xs text-gray-300">{{ s.cron_expression }}</td>
+            <td class="py-2 text-xs text-gray-400">{{ s.timeout_seconds }}s</td>
+            <td class="py-2">
+              {% if s.enabled %}
+                <span class="badge bg-green-900 text-green-300">active</span>
+              {% else %}
+                <span class="badge bg-gray-700 text-gray-400">paused</span>
+              {% endif %}
+            </td>
+            <td class="py-2 text-xs text-gray-400">
+              {% if next_runs.get(s.id) %}
+                {{ next_runs[s.id].strftime('%m/%d %H:%M') }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td class="py-2">
+              <div class="flex gap-1">
+                <form method="post" action="/schedules/{{ s.id }}/run-now" class="inline">
+                  <button class="btn btn-ghost text-xs" title="Run now">▶</button>
+                </form>
+                {% if s.enabled %}
+                  <form method="post" action="/schedules/{{ s.id }}/pause" class="inline">
+                    <button class="btn btn-ghost text-xs" title="Pause">⏸</button>
+                  </form>
+                {% else %}
+                  <form method="post" action="/schedules/{{ s.id }}/resume" class="inline">
+                    <button class="btn btn-success text-xs" title="Resume">▶</button>
+                  </form>
+                {% endif %}
+                <form method="post" action="/schedules/{{ s.id }}/delete" class="inline"
+                      onsubmit="return confirm('Delete this schedule?')">
+                  <button class="btn btn-danger text-xs" title="Delete">✕</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-sm text-gray-500">No schedules. Add one to run this project on a cron schedule.</p>
+      {% endif %}
+    </div>
+
+    <!-- Deploy History -->
+    <div class="card">
+      <h2 class="text-sm font-semibold text-gray-200 mb-4">Deploy History</h2>
+      {% if deploys %}
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-700 text-left">
+            <th class="py-2 text-xs text-gray-400">Time</th>
+            <th class="py-2 text-xs text-gray-400">Old Commit</th>
+            <th class="py-2 text-xs text-gray-400">New Commit</th>
+            <th class="py-2 text-xs text-gray-400">Status</th>
+            <th class="py-2 text-xs text-gray-400">Duration</th>
+            <th class="py-2 text-xs text-gray-400">By</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in deploys %}
+          <tr class="border-b border-gray-700/50">
+            <td class="py-2 text-xs text-gray-400">
+              {{ d.created_at.strftime('%m/%d %H:%M') if d.created_at else '—' }}
+            </td>
+            <td class="py-2 font-mono text-xs text-gray-500">{{ d.old_commit | short_commit }}</td>
+            <td class="py-2 font-mono text-xs text-gray-300">{{ d.new_commit | short_commit }}</td>
+            <td class="py-2">
+              <span class="badge {{ d.status | status_bg }}">{{ d.status }}</span>
+            </td>
+            <td class="py-2 text-xs text-gray-400">{{ d.duration_seconds | format_duration }}</td>
+            <td class="py-2 text-xs text-gray-500">{{ d.triggered_by }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-sm text-gray-500">No deploys yet.</p>
+      {% endif %}
+    </div>
+
+    <!-- Execution History -->
+    {% if executions %}
+    <div class="card">
+      <h2 class="text-sm font-semibold text-gray-200 mb-4">Execution History</h2>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-700 text-left">
+            <th class="py-2 text-xs text-gray-400">Triggered</th>
+            <th class="py-2 text-xs text-gray-400">Started</th>
+            <th class="py-2 text-xs text-gray-400">Duration</th>
+            <th class="py-2 text-xs text-gray-400">Status</th>
+            <th class="py-2 text-xs text-gray-400">Exit</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in executions %}
+          <tr class="border-b border-gray-700/50">
+            <td class="py-2 text-xs text-gray-400">
+              {{ e.trigger_time.strftime('%m/%d %H:%M') if e.trigger_time else '—' }}
+            </td>
+            <td class="py-2 text-xs text-gray-400">
+              {{ e.start_time.strftime('%H:%M:%S') if e.start_time else '—' }}
+            </td>
+            <td class="py-2 text-xs text-gray-400">{{ e.duration_seconds | format_duration }}</td>
+            <td class="py-2">
+              <span class="badge {{ e.status | status_bg }}">{{ e.status }}</span>
+            </td>
+            <td class="py-2 font-mono text-xs text-gray-500">{{ e.exit_code if e.exit_code is not none else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
+
+{% block modal %}
+<!-- Add Schedule Modal -->
+<div id="add-schedule-modal" class="modal-content hidden">
+  <div class="flex items-center justify-between mb-5">
+    <h2 class="text-lg font-semibold text-white">Add Schedule</h2>
+    <button onclick="closeModal()" class="text-gray-400 hover:text-white">✕</button>
+  </div>
+  <form method="post" action="/schedules/add" class="space-y-4">
+    <input type="hidden" name="project_id" value="{{ project.id }}"/>
+    <div>
+      <label class="block text-sm font-medium text-gray-300 mb-1.5">Cron Expression</label>
+      <input type="text" name="cron_expression" required placeholder="*/5 * * * *"
+             class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      <div class="grid grid-cols-3 gap-2 mt-2">
+        <button type="button" onclick="setCron('0 * * * *')" class="btn btn-ghost text-xs justify-center">Hourly</button>
+        <button type="button" onclick="setCron('0 9,18 * * *')" class="btn btn-ghost text-xs justify-center">9AM & 6PM</button>
+        <button type="button" onclick="setCron('0 0 * * *')" class="btn btn-ghost text-xs justify-center">Daily midnight</button>
+        <button type="button" onclick="setCron('*/15 * * * *')" class="btn btn-ghost text-xs justify-center">Every 15m</button>
+        <button type="button" onclick="setCron('0 0 * * 1')" class="btn btn-ghost text-xs justify-center">Weekly Mon</button>
+        <button type="button" onclick="setCron('*/5 * * * *')" class="btn btn-ghost text-xs justify-center">Every 5m</button>
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-gray-300 mb-1.5">Timeout (seconds)</label>
+      <input type="number" name="timeout_seconds" value="3600" min="30"
+             class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+    </div>
+    <div class="flex gap-3 pt-2">
+      <button type="submit" class="btn btn-primary flex-1 justify-center">Create Schedule</button>
+      <button type="button" onclick="closeModal()" class="btn btn-ghost flex-1 justify-center">Cancel</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function setCron(expr) {
+  document.querySelector('input[name="cron_expression"]').value = expr;
+}
+
+// HTMX log display
+document.addEventListener('htmx:afterSwap', function(e) {
+  if (e.detail.target.id === 'log-container') {
+    e.detail.target.scrollTop = e.detail.target.scrollHeight;
+  }
+});
+</script>
+{% endblock %}

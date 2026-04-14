@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Settings — PyRunner{% endblock %}
+{% block page_title %}Settings{% endblock %}
+
+{% block content %}
+<form method="post" action="/settings/save" class="max-w-2xl space-y-6">
+
+  <!-- Git Poller -->
+  <div class="card">
+    <h2 class="text-sm font-semibold text-gray-200 mb-5">Git Poller</h2>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1.5">Poll Interval (minutes)</label>
+        <input type="number" name="poll_interval_minutes" value="{{ cfg.git.poll_interval_minutes }}" min="1"
+               class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1.5">Parallel Checks</label>
+        <input type="number" name="parallel_checks" value="{{ cfg.git.parallel_checks }}" min="1"
+               class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1.5">Max Retries</label>
+        <input type="number" name="max_retries" value="{{ cfg.git.max_retries }}" min="1"
+               class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1.5">SSH Key Path</label>
+        <input type="text" name="ssh_key_path" value="{{ cfg.git.ssh_key_path }}"
+               class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+    </div>
+  </div>
+
+  <!-- Supervisord -->
+  <div class="card">
+    <h2 class="text-sm font-semibold text-gray-200 mb-5">Supervisord</h2>
+    <div class="grid grid-cols-2 gap-4">
+      <div class="col-span-2">
+        <label class="block text-xs font-medium text-gray-400 mb-1.5">XML-RPC URL</label>
+        <input type="text" name="xmlrpc_url" value="{{ cfg.supervisor.xmlrpc_url }}"
+               class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1.5">Username (optional)</label>
+        <input type="text" name="supervisor_username" value="{{ cfg.supervisor.username }}"
+               class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1.5">Password (optional)</label>
+        <input type="password" name="supervisor_password" value="{{ cfg.supervisor.password }}"
+               class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scheduler -->
+  <div class="card">
+    <h2 class="text-sm font-semibold text-gray-200 mb-5">Scheduler</h2>
+    <div>
+      <label class="block text-xs font-medium text-gray-400 mb-1.5">Timezone</label>
+      <input type="text" name="timezone" value="{{ cfg.scheduler.timezone }}"
+             placeholder="America/Sao_Paulo"
+             class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      <p class="text-xs text-gray-500 mt-1">IANA timezone (e.g. America/Sao_Paulo, UTC, Europe/London)</p>
+    </div>
+  </div>
+
+  <!-- Logs -->
+  <div class="card">
+    <h2 class="text-sm font-semibold text-gray-200 mb-5">Log Retention</h2>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1.5">Retention Days</label>
+        <input type="number" name="retention_days" value="{{ cfg.logs.retention_days }}" min="1"
+               class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1.5">Max Log Size (MB)</label>
+        <input type="number" name="max_size_mb" value="{{ cfg.logs.max_size_mb }}" min="1"
+               class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notifications -->
+  <div class="card">
+    <h2 class="text-sm font-semibold text-gray-200 mb-5">Notifications</h2>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1.5">Deploy Webhook URL</label>
+        <input type="url" name="deploy_webhook" value="{{ cfg.notifications.deploy_webhook }}"
+               placeholder="https://hooks.slack.com/..."
+               class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-400 mb-1.5">Schedule Webhook URL</label>
+        <input type="url" name="schedule_webhook" value="{{ cfg.notifications.schedule_webhook }}"
+               placeholder="https://hooks.slack.com/..."
+               class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex gap-3">
+    <button type="submit" class="btn btn-primary px-6">Save Settings</button>
+    <a href="/" class="btn btn-ghost">Cancel</a>
+  </div>
+
+</form>
+{% endblock %}

@@ -122,6 +122,20 @@ def status_bg(status: str) -> str:
     }.get(status, "bg-gray-700 text-gray-300")
 
 
+def script_from_log(log_path: str | None) -> str:
+    """Extract the script filename from a manual-run log path.
+
+    Log paths have the form  .../name.script.py.log  — return  script.py,
+    or an empty string if the path doesn't match.
+    """
+    if not log_path:
+        return ""
+    stem = Path(log_path).stem          # e.g. "solax-dashboard.build_db.py"
+    # Everything after the first dot segment is the script name
+    parts = stem.split(".", 1)
+    return parts[1] if len(parts) == 2 else ""
+
+
 def tail_file(path: str | Path, lines: int = 100) -> list[str]:
     """Return the last N lines of a file."""
     try:

@@ -1,8 +1,10 @@
 """Project management routes."""
 from __future__ import annotations
 
+import os
 import re
 import subprocess
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -30,6 +32,19 @@ def get_git_poller(request: Request):
 
 def get_scheduler(request: Request):
     return request.app.state.scheduler
+
+
+def _list_py_files(project_name: str) -> list[str]:
+    """Return .py filenames at the project root, excluding hidden/venv dirs."""
+    project_dir = get_projects_dir() / project_name
+    if not project_dir.exists():
+        return []
+    skip = {".venv", "venv", "__pycache__", ".git", "node_modules"}
+    return sorted(
+        f.name
+        for f in project_dir.iterdir()
+        if f.is_file() and f.suffix == ".py" and f.parent.name not in skip
+    )
 
 
 def _slug(url: str) -> str:
@@ -135,6 +150,8 @@ def project_detail(request: Request, name: str, db: Session = Depends(get_db)):
         nr = scheduler.get_next_run(s.id) if scheduler else None
         next_runs[s.id] = nr
 
+    py_files = _list_py_files(name)
+
     return templates.TemplateResponse(
         request,
         "project_detail.html",
@@ -145,6 +162,7 @@ def project_detail(request: Request, name: str, db: Session = Depends(get_db)):
             "schedules": schedules,
             "executions": executions,
             "next_runs": next_runs,
+            "py_files": py_files,
         },
     )
 
@@ -205,13 +223,132 @@ def force_deploy(request: Request, name: str, db: Session = Depends(get_db)):
     return RedirectResponse(url=f"/projects/{name}", status_code=303)
 
 
-@router.post("/{name}/delete")
-def delete_project(request: Request, name: str, db: Session = Depends(get_db)):
+@router.post("/{name}/run-script")
+def run_script(
+    request: Request,
+    name: str,
+    script: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Run a .py file from the project directory in a background thread."""
     project = db.query(Project).filter(Project.name == name).first()
     if not project:
         raise HTTPException(status_code=404)
 
-    # Stop process first
+    # Security: reject any path traversal — allow only a bare filename
+    script_name = Path(script).name
+    if script_name != script or not script_name.endswith(".py"):
+        raise HTTPException(status_code=400, detail="Invalid script name")
+
+    project_dir = get_projects_dir() / name
+    if not (project_dir / script_name).exists():
+        raise HTTPException(status_code=404, detail="Script not found")
+
+    # Create execution record immediately so it shows in the UI
+    execution = Execution(
+        project_id=project.id,
+        trigger_time=datetime.utcnow(),
+        status="running",
+    )
+    db.add(execution)
+    db.add(ActivityEvent(
+        event_type="execution",
+        project_name=name,
+        message=f"Manual run started: {script_name}",
+        level="info",
+    ))
+    db.commit()
+    db.refresh(execution)
+    exec_id = execution.id
+
+    def _run_in_background():
+        from dashboard.database import get_session_factory
+        SessionLocal = get_session_factory()
+        session = SessionLocal()
+        try:
+            start = datetime.utcnow()
+            log_path = get_logs_dir() / f"{name}.{script_name}.log"
+
+            # Simple .env loader (no extra dependency)
+            env_vars = dict(os.environ)
+            env_file = project_dir / (project.env_file or ".env")
+            if env_file.exists():
+                for line in env_file.read_text().splitlines():
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, _, v = line.partition("=")
+                        env_vars[k.strip()] = v.strip().strip('"').strip("'")
+
+            with open(log_path, "a") as logf:
+                logf.write(f"\n--- Manual run: {script_name}  {start.isoformat()} ---\n")
+                result = subprocess.run(
+                    ["uv", "run", "python", script_name],
+                    cwd=project_dir,
+                    env=env_vars,
+                    stdout=logf,
+                    stderr=subprocess.STDOUT,
+                    timeout=3600,
+                )
+
+            end = datetime.utcnow()
+            duration = (end - start).total_seconds()
+            success = result.returncode == 0
+
+            exec_rec = session.query(Execution).filter(Execution.id == exec_id).first()
+            if exec_rec:
+                exec_rec.start_time = start
+                exec_rec.end_time = end
+                exec_rec.duration_seconds = duration
+                exec_rec.exit_code = result.returncode
+                exec_rec.status = "success" if success else "failed"
+                exec_rec.log_path = str(log_path)
+                session.commit()
+
+            session.add(ActivityEvent(
+                event_type="execution",
+                project_name=name,
+                message=f"Manual run {script_name} {'succeeded' if success else 'failed'} (exit {result.returncode})",
+                level="success" if success else "error",
+            ))
+            session.commit()
+        except subprocess.TimeoutExpired:
+            exec_rec = session.query(Execution).filter(Execution.id == exec_id).first()
+            if exec_rec:
+                exec_rec.status = "timeout"
+                session.commit()
+        except Exception as exc:
+            exec_rec = session.query(Execution).filter(Execution.id == exec_id).first()
+            if exec_rec:
+                exec_rec.status = "failed"
+                session.commit()
+            session.add(ActivityEvent(
+                event_type="execution",
+                project_name=name,
+                message=f"Manual run {script_name} error: {exc}",
+                level="error",
+            ))
+            session.commit()
+        finally:
+            session.close()
+
+    threading.Thread(target=_run_in_background, daemon=True).start()
+    return RedirectResponse(url=f"/projects/{name}", status_code=303)
+
+
+@router.post("/{name}/delete")
+def delete_project(
+    request: Request,
+    name: str,
+    delete_files: str = Form("off"),
+    db: Session = Depends(get_db),
+):
+    import shutil
+
+    project = db.query(Project).filter(Project.name == name).first()
+    if not project:
+        raise HTTPException(status_code=404)
+
+    # Stop process and remove from Supervisord
     cfg = load_config()
     try:
         client = SupervisorClient(cfg)
@@ -226,6 +363,12 @@ def delete_project(request: Request, name: str, db: Session = Depends(get_db)):
         conf_path.unlink()
     subprocess.run(["supervisorctl", "reread"], capture_output=True)
     subprocess.run(["supervisorctl", "update"], capture_output=True)
+
+    # Optionally delete project files from disk
+    if delete_files == "on":
+        project_dir = get_projects_dir() / name
+        if project_dir.exists():
+            shutil.rmtree(project_dir)
 
     db.delete(project)
     db.commit()

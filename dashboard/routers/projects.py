@@ -348,7 +348,7 @@ def delete_project(
     if not project:
         raise HTTPException(status_code=404)
 
-    # Stop process and remove from Supervisord
+    # Stop process and remove from Supervisord via XML-RPC
     cfg = load_config()
     try:
         client = SupervisorClient(cfg)
@@ -357,18 +357,27 @@ def delete_project(
     except Exception:
         pass
 
-    # Remove supervisor conf
+    # Remove supervisor conf, then tell supervisord to reload via XML-RPC
     conf_path = get_supervisor_conf_dir() / f"{name}.conf"
-    if conf_path.exists():
-        conf_path.unlink()
-    subprocess.run(["supervisorctl", "reread"], capture_output=True)
-    subprocess.run(["supervisorctl", "update"], capture_output=True)
+    try:
+        if conf_path.exists():
+            conf_path.unlink()
+        client = SupervisorClient(cfg)
+        client.reread()
+    except Exception:
+        pass
 
     # Optionally delete project files from disk
     if delete_files == "on":
         project_dir = get_projects_dir() / name
         if project_dir.exists():
-            shutil.rmtree(project_dir)
+            try:
+                shutil.rmtree(project_dir)
+            except Exception as exc:
+                import logging
+                logging.getLogger("pyrunner").warning(
+                    "Could not delete project dir %s: %s", project_dir, exc
+                )
 
     db.delete(project)
     db.commit()

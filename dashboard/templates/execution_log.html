@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Run log: {{ execution.id }} — {{ project.name }} — PyRunner{% endblock %}
+{% block page_title %}Run output: {{ project.name }}{% endblock %}
+
+{% block header_actions %}
+<a href="/projects/{{ project.name }}" class="btn btn-ghost text-xs">← Project</a>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+  <!-- Meta row -->
+  <div class="flex flex-wrap gap-4 text-sm">
+    <div class="card py-2 px-4 flex items-center gap-3">
+      <span class="text-gray-400">Script</span>
+      {% set s = execution.log_path | script_from_log %}
+      <span class="font-mono text-gray-200">{{ s if s else project.entrypoint }}</span>
+    </div>
+    <div class="card py-2 px-4 flex items-center gap-3">
+      <span class="text-gray-400">Status</span>
+      <span class="badge {{ execution.status | status_bg }}">{{ execution.status }}</span>
+    </div>
+    <div class="card py-2 px-4 flex items-center gap-3">
+      <span class="text-gray-400">Exit code</span>
+      <span class="font-mono text-gray-200">{{ execution.exit_code if execution.exit_code is not none else '—' }}</span>
+    </div>
+    <div class="card py-2 px-4 flex items-center gap-3">
+      <span class="text-gray-400">Duration</span>
+      <span class="text-gray-200">{{ execution.duration_seconds | format_duration }}</span>
+    </div>
+    <div class="card py-2 px-4 flex items-center gap-3">
+      <span class="text-gray-400">Triggered</span>
+      <span class="text-gray-200">{{ execution.trigger_time.strftime('%Y-%m-%d %H:%M:%S') if execution.trigger_time else '—' }}</span>
+    </div>
+  </div>
+
+  <!-- Log output -->
+  <div class="card">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-gray-200">Output</h2>
+      <span class="text-xs text-gray-500">{{ lines | length }} lines</span>
+    </div>
+    {% if lines %}
+    <div class="bg-gray-900 rounded-lg p-3 font-mono text-xs text-gray-300 overflow-y-auto max-h-screen-3/4">
+      {% for line in lines %}
+      <div class="hover:bg-gray-800/50 whitespace-pre-wrap break-all leading-5">{{ line }}</div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-500">
+      {% if execution.status == 'running' %}
+        Script is still running — refresh to see output.
+      {% elif not execution.log_path %}
+        No log file recorded for this execution.
+      {% else %}
+        Log file is empty or was not found.
+      {% endif %}
+    </p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Scroll to bottom of log on load
+  const log = document.querySelector('.overflow-y-auto');
+  if (log) log.scrollTop = log.scrollHeight;
+</script>
+{% endblock %}

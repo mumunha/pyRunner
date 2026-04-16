@@ -375,6 +375,40 @@ def delete_project(
     return RedirectResponse(url="/projects", status_code=303)
 
 
+@router.get("/{name}/executions/{exec_id}/log", response_class=HTMLResponse)
+def view_execution_log(
+    request: Request,
+    name: str,
+    exec_id: int,
+    db: Session = Depends(get_db),
+):
+    """Show the stdout/stderr captured for a manual script run."""
+    templates = get_templates(request)
+    project = db.query(Project).filter(Project.name == name).first()
+    if not project:
+        raise HTTPException(status_code=404)
+    from dashboard.database import Execution as ExecModel
+    execution = db.query(ExecModel).filter(
+        ExecModel.id == exec_id, ExecModel.project_id == project.id
+    ).first()
+    if not execution:
+        raise HTTPException(status_code=404)
+
+    lines: list[str] = []
+    if execution.log_path:
+        lines = tail_file(execution.log_path, 2000)
+
+    return templates.TemplateResponse(
+        request,
+        "execution_log.html",
+        {
+            "project": project,
+            "execution": execution,
+            "lines": lines,
+        },
+    )
+
+
 @router.get("/{name}/logs", response_class=HTMLResponse)
 def view_logs(request: Request, name: str, lines: int = 200, db: Session = Depends(get_db)):
     templates = get_templates(request)

@@ -269,8 +269,13 @@ def run_script(
             start = datetime.utcnow()
             log_path = get_logs_dir() / f"{name}.{script_name}.log"
 
-            # Simple .env loader (no extra dependency)
+            # Build env: start from os.environ but strip PyRunner's own venv
+            # variables so uv picks up the project's venv instead.
             env_vars = dict(os.environ)
+            for _key in ("VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME"):
+                env_vars.pop(_key, None)
+
+            # Load the project's .env file
             env_file = project_dir / (project.env_file or ".env")
             if env_file.exists():
                 for line in env_file.read_text().splitlines():
@@ -373,10 +378,12 @@ def delete_project(
         if project_dir.exists():
             try:
                 shutil.rmtree(project_dir)
-            except Exception as exc:
-                import logging
-                logging.getLogger("pyrunner").warning(
-                    "Could not delete project dir %s: %s", project_dir, exc
+            except Exception:
+                # shutil.rmtree can fail on read-only files (e.g. inside .venv).
+                # Fall back to rm -rf which handles permissions more robustly on Linux.
+                subprocess.run(
+                    ["rm", "-rf", str(project_dir)],
+                    capture_output=True,
                 )
 
     db.delete(project)
@@ -450,6 +457,41 @@ def tail_logs_api(name: str, limit: int = 50):
     from html import escape
     html = "".join(f'<div class="hover:bg-gray-800/50">{escape(line)}</div>' for line in lines)
     return HTMLResponse(html)
+
+
+@router.get("/{name}/env-file")
+def get_env_file(name: str, db: Session = Depends(get_db)):
+    """Return the raw content of the project's .env file."""
+    project = db.query(Project).filter(Project.name == name).first()
+    if not project:
+        raise HTTPException(status_code=404)
+    env_path = get_projects_dir() / name / (project.env_file or ".env")
+    content = env_path.read_text() if env_path.exists() else ""
+    return JSONResponse({"content": content})
+
+
+@router.post("/{name}/env-file")
+def save_env_file(
+    request: Request,
+    name: str,
+    content: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Write (or create) the project's .env file."""
+    project = db.query(Project).filter(Project.name == name).first()
+    if not project:
+        raise HTTPException(status_code=404)
+    env_path = get_projects_dir() / name / (project.env_file or ".env")
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+    env_path.write_text(content)
+    db.add(ActivityEvent(
+        event_type="deploy",
+        project_name=name,
+        message=f"Environment variables updated for {name}",
+        level="info",
+    ))
+    db.commit()
+    return RedirectResponse(url=f"/projects/{name}", status_code=303)
 
 
 @router.get("/api/{name}/status")

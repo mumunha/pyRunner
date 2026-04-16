@@ -84,6 +84,18 @@
       {% endif %}
     </div>
 
+    <!-- Environment Variables -->
+    <div class="card">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-gray-200">Environment</h2>
+        <button onclick="openEnvEditor()" class="btn btn-ghost text-xs">Edit .env</button>
+      </div>
+      <p class="text-xs text-gray-500">
+        Variables from <code class="text-gray-400">{{ project.env_file or '.env' }}</code>
+        are injected into every run.
+      </p>
+    </div>
+
     <!-- Scripts -->
     {% if py_files %}
     <div class="card">
@@ -348,6 +360,27 @@
   </form>
 </div>
 
+<!-- Environment Editor Modal -->
+<div id="env-editor-modal" class="modal-content hidden">
+  <div class="flex items-center justify-between mb-5">
+    <h2 class="text-lg font-semibold text-white">Edit Environment Variables</h2>
+    <button onclick="closeModal()" class="text-gray-400 hover:text-white">✕</button>
+  </div>
+  <p class="text-xs text-gray-400 mb-3">
+    One <code class="text-gray-300">KEY=value</code> per line. Lines starting with <code class="text-gray-300">#</code> are comments.
+    The file is saved to <code class="text-gray-300">{{ project.env_file or '.env' }}</code> in the project directory.
+  </p>
+  <form method="post" action="/projects/{{ project.name }}/env-file" class="space-y-4">
+    <textarea name="content" id="env-textarea" rows="14" spellcheck="false"
+              class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-200 font-mono placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
+              placeholder="SOLAX_USERNAME=user@example.com&#10;SOLAX_PASSWORD=secret&#10;# comments are ignored"></textarea>
+    <div class="flex gap-3 pt-1">
+      <button type="submit" class="btn btn-primary flex-1 justify-center">Save</button>
+      <button type="button" onclick="closeModal()" class="btn btn-ghost flex-1 justify-center">Cancel</button>
+    </div>
+  </form>
+</div>
+
 <!-- Add Schedule Modal -->
 <div id="add-schedule-modal" class="modal-content hidden">
   <div class="flex items-center justify-between mb-5">
@@ -386,6 +419,15 @@
 <script>
 function setCron(expr) {
   document.querySelector('input[name="cron_expression"]').value = expr;
+}
+
+function openEnvEditor() {
+  fetch('/projects/{{ project.name }}/env-file')
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('env-textarea').value = data.content;
+      openModal('env-editor-modal');
+    });
 }
 
 // HTMX log display

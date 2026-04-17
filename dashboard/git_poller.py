@@ -67,28 +67,36 @@ def write_supervisor_conf(project, cfg: dict) -> Path:
 
 def _supervisorctl(cfg: dict, *args) -> tuple[int, str]:
     """Execute a supervisord action via XML-RPC (avoids Unix socket permission issues)."""
+    import xmlrpc.client
     from dashboard.supervisor_client import SupervisorClient
     action = args[0] if args else ""
     name = args[1] if len(args) > 1 else None
     try:
         client = SupervisorClient(cfg)
+        srv = client._server.supervisor
         if action == "reread":
-            # reloadConfig is handled inside update(); log-only here
-            client._server.supervisor.reloadConfig()
+            srv.reloadConfig()
             return 0, "reread OK"
         elif action == "update":
             ok = client.update()
-            return (0 if ok else 1), ""
+            return (0 if ok else 1), ("" if ok else "update failed — check supervisord logs")
         elif action in ("restart", "start", "stop"):
             if not name:
                 return -1, f"supervisorctl {action} requires a process name"
-            if action == "restart":
-                ok = client.restart_process(name)
-            elif action == "start":
-                ok = client.start_process(name)
-            else:
-                ok = client.stop_process(name)
-            return (0 if ok else 1), ""
+            try:
+                if action == "restart":
+                    try:
+                        srv.stopProcess(name, True)
+                    except xmlrpc.client.Fault:
+                        pass  # not running — that's fine
+                    srv.startProcess(name, True)
+                elif action == "start":
+                    srv.startProcess(name, True)
+                else:
+                    srv.stopProcess(name, True)
+                return 0, ""
+            except xmlrpc.client.Fault as e:
+                return 1, e.faultString
         else:
             return -1, f"Unknown supervisorctl action: {action}"
     except Exception as e:

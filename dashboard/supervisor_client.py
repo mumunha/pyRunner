@@ -97,6 +97,46 @@ class SupervisorClient:
             logger.warning("Supervisor reloadConfig failed: %s", e)
             return False
 
+    def update(self) -> bool:
+        """Apply config changes: equivalent to 'supervisorctl update'."""
+        try:
+            result = self._server.supervisor.reloadConfig()
+            added, changed, removed = result[0]
+            for grp in removed:
+                try:
+                    self._server.supervisor.stopProcessGroup(grp)
+                except Exception:
+                    pass
+                try:
+                    self._server.supervisor.removeProcessGroup(grp)
+                except Exception:
+                    pass
+            for grp in changed:
+                try:
+                    self._server.supervisor.stopProcessGroup(grp)
+                except Exception:
+                    pass
+                try:
+                    self._server.supervisor.removeProcessGroup(grp)
+                except Exception:
+                    pass
+                try:
+                    self._server.supervisor.addProcessGroup(grp)
+                except Exception:
+                    pass
+            for grp in added:
+                try:
+                    self._server.supervisor.addProcessGroup(grp)
+                except Exception:
+                    pass
+            logger.info(
+                "Supervisor update: added=%s changed=%s removed=%s", added, changed, removed
+            )
+            return True
+        except Exception as e:
+            logger.warning("Supervisor update failed: %s", e)
+            return False
+
     def add_process_group(self, name: str) -> bool:
         try:
             self._server.supervisor.addProcessGroup(name)

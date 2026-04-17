@@ -65,10 +65,32 @@ def write_supervisor_conf(project, cfg: dict) -> Path:
     return conf_path
 
 
-def _supervisorctl(*args) -> tuple[int, str]:
+def _supervisorctl(cfg: dict, *args) -> tuple[int, str]:
+    """Execute a supervisord action via XML-RPC (avoids Unix socket permission issues)."""
+    from dashboard.supervisor_client import SupervisorClient
+    action = args[0] if args else ""
+    name = args[1] if len(args) > 1 else None
     try:
-        r = subprocess.run(["supervisorctl"] + list(args), capture_output=True, text=True, timeout=30)
-        return r.returncode, r.stdout.strip()
+        client = SupervisorClient(cfg)
+        if action == "reread":
+            # reloadConfig is handled inside update(); log-only here
+            client._server.supervisor.reloadConfig()
+            return 0, "reread OK"
+        elif action == "update":
+            ok = client.update()
+            return (0 if ok else 1), ""
+        elif action in ("restart", "start", "stop"):
+            if not name:
+                return -1, f"supervisorctl {action} requires a process name"
+            if action == "restart":
+                ok = client.restart_process(name)
+            elif action == "start":
+                ok = client.start_process(name)
+            else:
+                ok = client.stop_process(name)
+            return (0 if ok else 1), ""
+        else:
+            return -1, f"Unknown supervisorctl action: {action}"
     except Exception as e:
         return -1, str(e)
 
@@ -128,18 +150,18 @@ class DeployPipeline:
 
             # Step 3: Regenerate supervisor conf
             write_supervisor_conf(self.project, self.cfg)
-            rc_reread, out_reread = _supervisorctl("reread")
-            rc_update, out_update = _supervisorctl("update")
+            rc_reread, out_reread = _supervisorctl(self.cfg, "reread")
+            rc_update, out_update = _supervisorctl(self.cfg, "update")
             logger.info("supervisorctl reread: rc=%s %s", rc_reread, out_reread)
             logger.info("supervisorctl update: rc=%s %s", rc_update, out_update)
 
             # Step 4: Restart if was running or auto_start
             if self.project.status in ("running", "updating") or self.project.auto_start:
-                rc_restart, out_restart = _supervisorctl("restart", self.project.name)
+                rc_restart, out_restart = _supervisorctl(self.cfg, "restart", self.project.name)
                 logger.info("supervisorctl restart %s: rc=%s %s", self.project.name, rc_restart, out_restart)
                 if rc_restart != 0:
                     # start may work even if restart fails (program not yet known)
-                    rc_start, out_start = _supervisorctl("start", self.project.name)
+                    rc_start, out_start = _supervisorctl(self.cfg, "start", self.project.name)
                     logger.info("supervisorctl start %s: rc=%s %s", self.project.name, rc_start, out_start)
 
             duration = time.time() - start_time
@@ -431,13 +453,13 @@ class GitPoller:
 
                 # Write supervisor conf
                 write_supervisor_conf(project, self.cfg)
-                rc_rr, out_rr = _supervisorctl("reread")
-                rc_up, out_up = _supervisorctl("update")
+                rc_rr, out_rr = _supervisorctl(self.cfg, "reread")
+                rc_up, out_up = _supervisorctl(self.cfg, "update")
                 logger.info("supervisorctl reread: rc=%s %s", rc_rr, out_rr)
                 logger.info("supervisorctl update: rc=%s %s", rc_up, out_up)
 
                 if project.auto_start:
-                    rc_st, out_st = _supervisorctl("start", name)
+                    rc_st, out_st = _supervisorctl(self.cfg, "start", name)
                     logger.info("supervisorctl start %s: rc=%s %s", name, rc_st, out_st)
                     # Small delay to let supervisord spin up the process
                     time.sleep(2)

@@ -187,6 +187,7 @@
         <thead>
           <tr class="border-b border-gray-700 text-left">
             <th class="py-2 text-xs text-gray-400">Cron</th>
+            <th class="py-2 text-xs text-gray-400">Script</th>
             <th class="py-2 text-xs text-gray-400">Timeout</th>
             <th class="py-2 text-xs text-gray-400">Status</th>
             <th class="py-2 text-xs text-gray-400">Next Run</th>
@@ -197,6 +198,7 @@
           {% for s in schedules %}
           <tr class="border-b border-gray-700/50">
             <td class="py-2 font-mono text-xs text-gray-300">{{ s.cron_expression }}</td>
+            <td class="py-2 font-mono text-xs text-gray-400">{{ s.entrypoint or project.entrypoint }}</td>
             <td class="py-2 text-xs text-gray-400">{{ s.timeout_seconds }}s</td>
             <td class="py-2">
               {% if s.enabled %}
@@ -401,6 +403,12 @@
         <button type="button" onclick="setCron('0 0 * * 1')" class="btn btn-ghost text-xs justify-center">Weekly Mon</button>
         <button type="button" onclick="setCron('*/5 * * * *')" class="btn btn-ghost text-xs justify-center">Every 5m</button>
       </div>
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-gray-300 mb-1.5">Script (entrypoint)</label>
+      <input type="text" name="entrypoint" placeholder="{{ project.entrypoint }}"
+             class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      <p class="text-xs text-gray-500 mt-1">Leave blank to use the project default ({{ project.entrypoint }})</p>
     </div>
     <div>
       <label class="block text-sm font-medium text-gray-300 mb-1.5">Timeout (seconds)</label>

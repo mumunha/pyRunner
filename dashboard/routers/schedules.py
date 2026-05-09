@@ -57,6 +57,7 @@ def add_schedule(
     project_id: int = Form(...),
     cron_expression: str = Form(...),
     timeout_seconds: int = Form(3600),
+    entrypoint: str = Form(""),
     db: Session = Depends(get_db),
 ):
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -66,6 +67,7 @@ def add_schedule(
     schedule = Schedule(
         project_id=project_id,
         cron_expression=cron_expression,
+        entrypoint=entrypoint.strip() or None,
         timeout_seconds=timeout_seconds,
         enabled=True,
     )
@@ -166,6 +168,7 @@ def edit_schedule(
     schedule_id: int,
     cron_expression: str = Form(...),
     timeout_seconds: int = Form(3600),
+    entrypoint: str = Form(""),
     db: Session = Depends(get_db),
 ):
     schedule = db.query(Schedule).filter(Schedule.id == schedule_id).first()
@@ -174,6 +177,7 @@ def edit_schedule(
 
     schedule.cron_expression = cron_expression
     schedule.timeout_seconds = timeout_seconds
+    schedule.entrypoint = entrypoint.strip() or None
     db.commit()
 
     scheduler = _scheduler(request)

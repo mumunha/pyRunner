@@ -96,6 +96,10 @@ def _supervisorctl(cfg: dict, *args) -> tuple[int, str]:
                     srv.stopProcess(name, True)
                 return 0, ""
             except xmlrpc.client.Fault as e:
+                if "ALREADY_STARTED" in e.faultString:
+                    return 0, ""  # already running — that's fine
+                if action == "stop" and "NOT_RUNNING" in e.faultString:
+                    return 0, ""  # already stopped — that's fine
                 return 1, e.faultString
         else:
             return -1, f"Unknown supervisorctl action: {action}"

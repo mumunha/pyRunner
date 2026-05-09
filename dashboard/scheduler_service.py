@@ -158,6 +158,8 @@ def _execute_scheduled_job(schedule_id: int, project_id: int, timeout: int):
     SessionLocal = get_session_factory()
     trigger_time = datetime.utcnow()
 
+    from dashboard.database import Schedule
+
     db = SessionLocal()
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
@@ -165,7 +167,8 @@ def _execute_scheduled_job(schedule_id: int, project_id: int, timeout: int):
         return
 
     project_name = project.name
-    entrypoint = project.entrypoint
+    schedule_obj = db.query(Schedule).filter(Schedule.id == schedule_id).first()
+    entrypoint = (schedule_obj.entrypoint if schedule_obj and schedule_obj.entrypoint else None) or project.entrypoint
     project_dir = get_projects_dir() / project_name
     db.close()
 

@@ -15,6 +15,7 @@ from sqlalchemy import (
     Text,
     create_engine,
     event,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Session, relationship, sessionmaker
 
@@ -74,6 +75,7 @@ class Schedule(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     cron_expression = Column(String, nullable=False)
+    entrypoint = Column(String, nullable=True)
     timeout_seconds = Column(Integer, default=3600)
     enabled = Column(Boolean, default=True)
     apscheduler_id = Column(String, nullable=True)
@@ -137,6 +139,14 @@ def get_engine():
             cursor.close()
 
         Base.metadata.create_all(_engine)
+
+        # Migrate: add entrypoint column to schedules if missing
+        with _engine.connect() as conn:
+            cols = [row[1] for row in conn.execute(text("PRAGMA table_info(schedules)"))]
+            if "entrypoint" not in cols:
+                conn.execute(text("ALTER TABLE schedules ADD COLUMN entrypoint VARCHAR"))
+                conn.commit()
+
     return _engine
 
 

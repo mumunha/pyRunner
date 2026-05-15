@@ -482,16 +482,8 @@ class GitPoller:
                         )
                         logger.error("Process did not start for %s: %s", name, project.error_message)
                     else:
-                        # Small delay to let supervisord spin up the process
-                        time.sleep(2)
-                        if _verify_process_running(name, self.cfg):
-                            project.status = "running"
-                        else:
-                            project.status = "error"
-                            project.error_message = (
-                                f"Process started but exited immediately — check the project logs for errors."
-                            )
-                            logger.error("Process crashed on start for %s", name)
+                        # startProcess(wait=True) already confirmed RUNNING before returning
+                        project.status = "running"
                 else:
                     project.status = "ready"
 

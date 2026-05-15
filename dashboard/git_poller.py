@@ -473,18 +473,25 @@ class GitPoller:
                 if project.auto_start:
                     rc_st, out_st = _supervisorctl(self.cfg, "start", name)
                     logger.info("supervisorctl start %s: rc=%s %s", name, rc_st, out_st)
-                    # Small delay to let supervisord spin up the process
-                    time.sleep(2)
-                    if _verify_process_running(name, self.cfg):
-                        project.status = "running"
-                    else:
+                    if rc_st != 0:
                         project.status = "error"
                         project.error_message = (
-                            f"supervisorctl start returned rc={rc_st}: {out_st}. "
+                            f"supervisorctl start failed (rc={rc_st}): {out_st}. "
                             "Check that supervisord is running and its include path covers "
                             "~/pyrunner/supervisor/conf.d/"
                         )
                         logger.error("Process did not start for %s: %s", name, project.error_message)
+                    else:
+                        # Small delay to let supervisord spin up the process
+                        time.sleep(2)
+                        if _verify_process_running(name, self.cfg):
+                            project.status = "running"
+                        else:
+                            project.status = "error"
+                            project.error_message = (
+                                f"Process started but exited immediately — check the project logs for errors."
+                            )
+                            logger.error("Process crashed on start for %s", name)
                 else:
                     project.status = "ready"
 
